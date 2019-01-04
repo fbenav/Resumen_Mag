@@ -1,0 +1,455 @@
+\documentclass{article}
+
+\usepackage{stmaryrd}
+\usepackage{subfiles}
+\usepackage{amsmath, amsthm, amsfonts}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{cases}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{caption}
+\usepackage{subfig}
+%\numberwithin{figure}{section}
+%\numberwithin{equation}{section}
+\allowdisplaybreaks[3]
+\usepackage[utf8]{inputenc}
+\usepackage{mathtools} %for \mathcalp
+
+\usepackage{algorithm} %para escribir pseudo codigos.
+\usepackage{algorithmic} %para escribir pseudo codigos.
+
+
+\newcommand\myeq{\stackrel{\mathclap{\normalfont\mbox{\tiny{def}}}}{=}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\x}{x^*}
+
+\newtheorem{Teo}{Theorem}
+\newtheorem{lema}{Lemma}
+\newtheorem{defi}{Definici\'on}
+
+\title{Resumen Trabajo de Magister}
+\author{Francisco Benavides}
+\date{01-2019}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Introduction}
+
+El desarrollo de algoritmos computacionalmente eficientes a la hora de trabajar con una gran cantidad de variables a tomado importancia en los últimos años. El nuevo enfoque que se le ha dado a algoritmos clásicos, como los métodos de descenso, mediante técnicas de machine learning como las redes neuronales o programación paralela, a sido crucial en esta tarea, así como también el buscar herramientas que permitan obtener versiones aceleradas de algoritmos ya existentes. Es en este contexto donde el algoritmo \"Acelerado,Paralelo y Proximal\" (APProx) presentado en \cite{Fercoq_Richtarik} se presenta como una versión, valga la redundancia, acelerada (con una tasa de convergencia de $O(k^{-2})$, donde $k$ es el número de iteraciones realizadas), paralelizable y proximal de algoritmos de descenso por bloques aleatorios, buscando soluciones para el siguiente problema de optimización convexa:
+
+\begin{equation}
+	\label{eq:main_problem}
+	\min_{x \in \R} F(x) = f(x) + \psi(x).
+\end{equation}
+Donde $x = \left( x^{(1)},\ldots,x^{(n)} \right)$ con $x^{(i)} \in \R^{N_i}$ y $\sum_{i=1}^n = N$. La función $\psi$ es un regularizador (posiblemente no suave), con una estructura separable por bloques, es decir:
+
+\begin{equation*}
+	\psi(x) = \sum_{i=1}^n \psi_i\left(x^{(i)}\right).
+\end{equation*}
+Por ejemplo, la función  $\psi(x) = \Vert x\Vert_1$ suele ser utilizada en problemas de regularización y satisface esta condición. La función $f$ es de la forma:
+
+\begin{equation*}
+	f(x) = \sum_{j=1}^m f_j(x),
+\end{equation*}
+donde cada $f_j$ es una función convexa, suave y separable por bloque. \\
+
+En este contexto, el algoritmo APProx esta dado por:
+
+\begin{algorithm}[H]
+\begin{algorithmic}[1]
+\STATE Elegir $x_0 \in \R^N$, $\theta_0 \in (0,1]$ e iniciar $z_0 = x_0$
+\FOR{ $k \geq 0$}
+	\STATE $y_k = (1-\theta_k)x_k+\theta_k z_k$
+	\STATE Seleccionar aleatoriamente un conjunto de bloques $S_k$
+	\STATE $z_{k+1} = z_k$
+	\FOR{ $i \in S_k$}	
+		\STATE $z^{(i)}_{k+1} = argmin_{z \in \R^{N_i}} \left\lbrace \left< \nabla_i f(y_k),z-y^{(i)}_k   \right> + \frac{n \theta_k v_i}{2\tau} \Vert z - z_k^{(i)} \Vert^2_{(i)} + \psi_i(z)    \right\rbrace$
+	\ENDFOR
+	\STATE $x_{k+1} = y_k + \frac{n}{\tau} \theta_k (z_{k+1}-z_k)$
+	\STATE Actualizar $\theta_{k+1} \in (0,1]$  con algún criterio adecuado.
+\ENDFOR
+\end{algorithmic}
+\caption{APPROX: Accelerated Parallel Proximal Coordinate Descent}\label{alg:APPROX_1}
+\end{algorithm}
+
+Es facil notar que los pasos 3 y 7 guardan similaridad con el algoritmo Backward-Forward de Nesterov, el cual genera una secuencia $(y_k,x_k)$, mientras que APProx hace uso de una secuencia auxiliar $z_k$ en el paso 3. \\
+
+El interés de estudiar el algoritmo APProx viene por su flexibilidad y eficiencia. Es eficiente en el sentido que, si las funciones $f_j(x) = \phi_j(a_j^Tx)$, donde $\phi_j$ es una función convexa y escalar con derivada Lipschitz y $a_j$ presenta bloques sparse, las operaciones que involucran cálculos sobre todo el vector de variables pueden ser omitidas, siendo este el mayor problema del método clásico presentado por Nesterov \cite{Nesterov}. A pesar de que esta representación puede parecer poco natural, el problema de mínimos cuadrados puede ser escrito de esta forma. \\
+
+La flexibilidad esta dada por la gran variedad de problemas que puede resolver al combinar sus sus cuatro elementos principales (el termino proximal $\psi$, el número de bloques, el muestreo de bloques y el parametro $\theta_k$). De esta manera, APProx puede resolver el método del gradiente clásico (GF), su versión proyectada y proximal, permitiendo además recuperar el método del gradiente acelerado presentando por Tseng (citar a Tseng).\\
+
+
+Fercoq y Richtarik en \cite{Fercoq_Richtarik} prueban que al considerar  $\theta_0 = \frac{\tau}{n}$ y $\theta_{k+1} = \frac{\sqrt{\theta_k^4 + 4\theta_k^2}-\theta_k^2}{2}$, donde $\tau$ es el número esperado de bloques que se actualizan en cada iteración, APProx posee una tasa de convergencia de  $O(k^{-2})$, dada por la siguiente desigualdad:
+
+\begin{equation}
+	\label{eq:FR_complexity}
+	E\left[ F(x) - F(\x) \right] \leq \frac{4n^2C_*}{\left( (k-1)\tau + 2n \right)^2},
+\end{equation}
+donde $\x$ es el punto óptimo de  \eqref{eq:main_problem}, $\tau$ es el número esperado de bloques a actualizar en cada iteración y $C_*$ es una constante que depende de la diferencia entre  $F(x_0)$ y $F(\x)$, y la distancia entre $x_0$ y $\x$  con respecto a alguna norma. Así, el algoritmo converge en valor esperado al valor optimo de $F$ tan rápido como $1/k^2$ converge a 0. El objetivo general del trabajo es probar que esta tasa puede ser mejorada al seleccionar $\theta_k$ adecuadamente, usando las mismas hipotesis sobre la función $f$ que en \cite{Fercoq_Richtarik}:
+
+\begin{itemize} 
+	\item[1.-] Una ESO (definir), es una desigualdad que involucra las funciones  $f$ y una muestra de bloques  $\hat{S}$. Para la hipotesis 1, consideramos los siguientes tres elementos:
+	\begin{itemize}
+		\item f is convex and differentiable. f es convexa y diferenciable.
+		\item $\hat{S}$ es una muestra de bloques uniforme. Es decir, $\hat{S}$ es un subconjunto (aleatorio) de $[n] = \lbrace 1,2,\ldots,n \rbrace$ tal que $P(i \notin \hat{S}) = P(j \notin \hat{S})$ para todo $i,j \in [n]$, considerando $\tau = E[\vert \hat{S} \vert]$.
+		\item Existe un vector de constantes (calculables) $v=\left(  v_1,\ldots,v_n \right) > 0$ tal que el par $(f,\hat{S})$ admite la  ESO:
+		\begin{equation}
+			E\left[ f\left(x + h_{[\hat{S}]} \right)  \right] \leq f(x) + \frac{\tau}{n} \left( \left< \nabla f(x),h \right> + \frac{1}{2}\Vert h \Vert_v^2 \right), \quad x,h \in \R^N.	
+		\end{equation}		 
+Note que esta desigualdad, en el caso determinista donde $\tau = n$, es equivalente a suponer que el gradiente de $f$ es v-Lipschitz  respecto a la norma  $\Vert \cdot \Vert_{(1)}$.	
+	\end{itemize}	
+	
+	
+	\item[2.-]Las funciones  $\lbrace f_j \rbrace$ poseen gradiente Lipschitz por bloque, con constante $L_{ji} \geq 0$. Así, para todo $j=1,2,\ldots,m$ y $i=1,2,\ldots,n$,
+
+\begin{equation}
+ \Vert \nabla_i f_j(x+U_it)-\nabla_i f_j(x) \Vert_{(i)}^* \leq L_{ji}\Vert t\Vert_{(i)}, \quad x \in \R^N,t\in \R^{N_i}.
+\end{equation}
+
+Esta hipótesis, hace que necesariamente
+\begin{equation}
+	L_{ji} = 0, \quad \text{cuando} \quad i \notin C_j.
+\end{equation}
+\end{itemize}
+
+\subsection{Contents}
+
+This paper is organized as follow. 
+
+\subsection{Notation}. 
+
+We use the same notation presented in \cite{Fercoq_Richtarik}. Let be $U$ the $N \times N$ identity matrix with a column decomposition $U = \left[ U_1,\ldots,U_n \right]$, with each $U_i \in \R^{N\times N_i}$.  For $x \in \R^N$, let be $x^{(i)}$ the block of variables corresponding to the columns of $U_i$, that is, $x^{(i)} = U_i^{T}x \in \R^N_i$ with $i = 1,\ldots,n$. In this way, any vector $x \in \R^N$ can be written, uniquely, as
+
+\begin{equation}
+	x = \sum_{i=1}^n U_ix^{(i)}.
+\end{equation}
+For $h \in \R^N$ and $\emptyset \neq S \subset [n] = \left\{ 1,\ldots,n \right\}$, we write
+
+\begin{equation}
+	h_{[S]} = \sum_{i\in S} U_ih^{(i)}.
+\end{equation}
+In other words, $h_{[S]}$ is a vector in $\R^N$ obtained from $h$ by zeroing out the blocks that do not belong to $S$. We also write the vector of partial derivatives w.r.t. coordinates belong to block $i$ as:
+
+\begin{equation}
+	\nabla_i f(x) = \left(\nabla f(x) \right)^{(i)} = U_i^{T} \nabla f(x) \in \R^{N_i}.
+\end{equation}
+In each block $i \in [n]$ we associate a positive definite matrix $B_i \in \R^{N_i \times N_i}$ and an scalar $v_i > 0$ to equip $\R^{N_i}$ and $\R^N$ with the following norms:
+
+\begin{equation}
+	\Vert x^{(i)} \Vert_{(i)} = \left<B_i x^{(i)}, x^{(i)} \right>^{1/2}, \quad \Vert x \Vert_v = \left(\sum_{i=1}^n v_i \Vert x^{(i)} \Vert_{(i)} \right)^{1/2}
+\end{equation}
+We consider the corresponding conjugates norms defined by $\Vert s \Vert_* = \max\left\{ \left<s,x \right>:\Vert x \Vert \leq 1 \right\}$:
+
+\begin{equation}
+	\Vert x^{(i)}\Vert_{(i)}^* = \left<B_i^{-1}x^{(i)},x^{(i)}\right>^{1/2},\quad \Vert x\Vert_v^* = \left( \sum_{i=1}^n v_i^{-1} \left( \Vert x^{(i)}\Vert_{(i)}^* \right)^2 \right)^{1/2}.
+\end{equation}
+Also need to distinguish between $E_k[\cdot]$ and $E[\cdot]$. The conditional expectation $E_k[\cdot$ denotes the expected value w.r.t. $S_k$, keeping everything else fixed. This mean,  we know all the values generated by the algorithm until the iteration $k$. In contrast, $E[\cdot]$ denotes complete expected value, in other words, for this we don't know any value generated by the algorithm. Then by the projection properties of the conditional expected value:
+\begin{equation*}
+	E[E_k[\cdot]] = E[\cdot].
+\end{equation*}
+
+
+
+
+\section{Parameter selection and some lemmas}
+
+In this section we discuss the criteria using for the selection of the parameter $\theta_k$, and then,  some useful approximations that helps in the prove of our main result.
+
+\subsection*{Parameter selection}
+
+In \cite{tseng2008accelerated} they presented the following rule for updating the parameter $\theta_k$: Choose $\theta_0 \in (0,1)$ and pick $\theta_{k+1} \in (0,1]$ satisfying the inequality
+
+\begin{equation}
+\label{eq:Parameter_criteria}
+	\frac{1-\theta_{k+1}}{\theta_{k+1}^2} \leq \frac{1}{\theta_k^2},
+\end{equation}
+In particular, they used the update rule obtained by solve  the equality in \eqref{eq:Parameter_criteria}.    The version of APPROX presented in \cite{Fercoq_Richtarik}, use this idea, generating the update rule:
+
+\begin{equation*}
+	\theta_0 = \frac{\tau}{n} \in (0,1], \quad \theta_{k+1} = \frac{\sqrt{\theta_k^4+4\theta_k^2}-\theta_k^2}{2}.
+\end{equation*}
+We propose an alternative selection of $\theta_k$, inspired in \cite{HA_JP}, given by:
+
+\begin{equation}
+	\label{eq:my_parameter}
+	\theta_k = \frac{(\alpha-1)}{k + \left(\alpha-1\right)n/\tau}, \quad \alpha > 3.
+\end{equation}  
+this criteria satisfy \eqref{eq:Parameter_criteria} and the recursion
+
+\begin{equation}
+	\label{eq:parameter_recursion}
+	\frac{1}{\theta_{k+1}} = \frac{1}{\theta_k} + \frac{1}{(\alpha-1)}.
+\end{equation} 
+
+An important observation is that our case preserve the value $\theta_0 = \tau/n$. This is importance, because this property of guaranties necessary approximations. We will see that the condition $\alpha > 3$ can not be relaxed.  This gives us the following result:
+
+\begin{lema}
+If $\alpha > 3$ the sequence $\lbrace \theta_k \rbrace_{k\geq 0}$ defined by \eqref{eq:my_parameter} is decreasing and satisfies $0 < \theta_k \leq \frac{\tau}{n} \leq 1$ and
+	\begin{equation*}
+		\frac{1-\theta_{k+1}}{\theta^2_{k+1}} < \frac{1}{\theta_k^2}. 
+	\end{equation*}
+\label{lema_1}
+\end{lema}
+
+\noindent For our  selection of $\theta_k$ we can prove lemma \ref{lema_1} holds computing exactly the difference between the right and left side of the equation above. Notice
+\begin{eqnarray*}
+\frac{1-\theta_{k+1}}{\theta_{k+1}^2} &=& \frac{1}{\theta_{k+1}^2} - \frac{1}{\theta_{k+1}}, \\
+&=& \left(\frac{1}{\theta_k} + \frac{1}{(\alpha-1)} \right)^2 - \left(\frac{1}{\theta_k}+\frac{1}{(\alpha-1)} \right), \\
+&=& \frac{1}{\theta_k^2} + \frac{2}{\theta_{k+1}} + \frac{1}{(\alpha-1)^2}-\frac{(\alpha-1)+\theta_k}{\theta_k(\alpha-1)}, \\
+&=& \frac{1}{\theta_k} - \frac{(\alpha-1)+\theta_k-2}{\theta_k(\alpha-1)} + \frac{1}{(\alpha-1)^2},\\
+&=& \frac{1}{\theta_k} - \frac{(\alpha-1)^2+\theta_k(\alpha-1)-2(\alpha-1)-\theta_k}{\theta_k(\alpha-1)^2}, \\
+&=& \frac{1}{\theta_k} - \left[\frac{\theta_k(\alpha-2)+(\alpha-1)(\alpha-3)}{\theta_k(\alpha-1)^2} \right],
+\end{eqnarray*}
+then, for $\alpha > 3$ we have
+
+\begin{equation*}
+\frac{1-\theta_{k+1}}{\theta_{k+1}^2} - \frac{1}{\theta_k} =  - \frac{\theta_k(\alpha-2)+(\alpha-1)(\alpha-3)}{\theta_k(\alpha-1)^2} < 0.
+\end{equation*}
+Notice that, this inequality is not  true if $\alpha \leq 3$.
+
+\subsection{Some approximations}
+
+We are going to present some lemmas used in the proof. The first three with their respective proofs are mentioned in \cite{Fercoq_Richtarik}. Lets start with an explicit characterization of $x_k$ as a convex combination of the vectors $z_0,\ldots,z_k$.
+
+\begin{lema}
+Let $\lbrace x_k,z_k \rbrace_{k\geq 0}$ be the iterates of APPROX. Then for all $k\geq 0$,
+	\begin{equation*}
+		x_k = \sum_{l=0}^k \gamma_k^l z_l
+	\end{equation*}
+where the coefficients$\gamma_k^0,\gamma_k^1,\ldots,\gamma_k^k$ are nonnegative and sum to 1. That is, $x_k$ is a convex combination of the vectors $z_0,\ldots,z_k$.In particular, the constants are defined recursively in $k$, by setting $\gamma_0^0 = 1, \gamma_0^1=0, \gamma_1^1 = 1$ and for $k\geq 1$
+	\begin{align}
+		\gamma_{k+1}^1 = \begin{cases}
+			(1-\theta_k)\gamma_k^l,  &l = 0,\ldots,k-1\\
+			\theta_k\left(1-\frac{n}{\tau}\theta_{k-1}\right) + \frac{n}{\tau}(\theta_{k-1}-\theta_k),& l = k \\
+			\frac{n}{\tau} \theta_k, &l = k+1.
+		\end{cases}
+	\end{align}
+Moreover, for all $k \geq 0$, the following identity holds:
+	\begin{equation*}
+		\gamma_{k+1}^k + \frac{n-\tau}{\tau} \theta_k  = (1-\theta_k)\gamma_k^k
+	\end{equation*}
+\label{lema_2}
+\end{lema}
+\noindent The proof of this lemma presented in \cite{Fercoq_Richtarik} need only the value $\theta_0 = \tau/n$, in this way, any choose of $\theta_k$ satisfying this conditions makes lemma \ref{lema_2} true. From this lemma, we have
+\begin{equation*}
+\psi(x_k) = \psi \left(\sum_{l=0}^k \gamma_k^l z_l \right) \leq \sum_{l=0}^k \gamma_k^l \psi \left(z_l \right) \myeq \hat{\psi}_k,
+\end{equation*}
+then, we can define the approximation
+\begin{equation*}
+\hat{F}_k \myeq \hat{\psi}_k + f(x_k) \geq F(x_k).
+\end{equation*}
+
+For the following lemmas we define
+
+\begin{eqnarray*}
+	\tilde{z}_{k+1} &\myeq & arg \min_{z \in \R^N} \lbrace \psi(z) + \left< \nabla f(y_k),z-y_k\right> + \frac{n\theta_k}{2\tau} \Vert z-z_k \Vert_{(i)}^2 \rbrace \\
+	&=&arg\min_{z = \left(z^{(1)},\ldots,z^{(n)} \right)} \sum_{i=1}^n \left\lbrace \psi_i(z^{(i)}) + \left< \nabla_i f(y_k),z^{(i)}-y_k^{(i)} \right> + \frac{n\theta_k v_i}{2\tau} \Vert z^{(i)}-z_k^{(i)}\Vert_{(i)}^2 \right\rbrace,
+\end{eqnarray*}
+From this, and the definition of $z_{k+1}$ we can see that
+\begin{align*}
+	z_{k+1}^{(i)} = \begin{cases}
+						\tilde{z}_{k+1}^{(i)}, &i \in S_k, \\
+						z_k^{(i)}, &i \notin S_k. 
+	\end{cases}
+\end{align*}
+
+\begin{lema}
+Denote by $\xi(u) \myeq f(y_k) + \left< \nabla f(y_k),u-y_k \right> + \frac{n\theta_k}{2\tau}\Vert u-z_k \Vert^2_k$, then
+	\begin{equation}
+		\psi(\tilde{z}_{k+1}) + \xi(\tilde{z}_{k+1}) \leq \psi(\x)+\xi(\x)-\frac{n\theta_k}{2\tau} \Vert \x - \tilde{z}_{k+1} \Vert_v^2.
+	\end{equation}
+\label{lema_3}
+\end{lema}
+
+\begin{lema}
+For any $x \in \R^N$ and $k\geq 0$,
+	\begin{equation}
+		E_k \left[ \Vert z_{k+1}-x \Vert_v^2 - \Vert z_k - x \Vert_v^2 \right] = \frac{\tau}{n} \left( \Vert \tilde{z}_{k+1} -x \Vert_v^2  - \Vert z_k - x  \Vert_v^2\right).
+	\end{equation}
+moreover,
+	\begin{equation}
+		E_k \left[ \psi(z_{k+1}) \right] = \left(1 - \frac{\tau}{n} \right) \psi(z_k) + \frac{\tau}{n} \psi(\tilde{z}_{k+1}).
+	\end{equation}
+\label{lema_4}
+\end{lema}
+
+Now we are going to take another path for the developed in \cite{Fercoq_Richtarik}. Our objective is looking for a similar equation that the one obtanied in (\cite{HA_JP}:eq [16]). This will be the breaking point in our proof. For this we are going to define a sequence $\epsilon(k)$ and show some properties.
+\begin{lema}
+Let be $\x$ an optimal point of \eqref{eq:main_problem} and define, for each $k \in \N$:
+
+\begin{equation}
+\label{eq:Funcional_de_k}
+\varepsilon(k) := \frac{2s}{\alpha-1}\left(k+1+(\alpha-1)\frac{n}{\tau} \right)^2 E \left[\hat{F}_k - F(\x) \right] + (\alpha-1)E\left[\Vert z_k - \x \Vert_v^2 \right],
+\end{equation}
+where $s = \frac{\tau^2}{n^2}$. Then the sequence $\lbrace \epsilon(k)\rbrace_{k\in \N}$ satisfy:
+\begin{itemize}
+	\item[i)] The sequence $\lbrace \varepsilon(k)\rbrace_{k\in \N}$ is nonincreasing and $\displaystyle \lim_{k \rightarrow \infty} \varepsilon(k)$ exist. \\
+	In particular $\varepsilon(k) \leq \varepsilon(0)$.
+	\item[ii)] For each $k \geq 0$ we have
+		\begin{equation*}
+			E\left[ \hat{F}_k - F(\x)\right] \leq \frac{(\alpha-1)\varepsilon(0)}{2s\left(k-1+(\alpha-2)\frac{n}{\tau} \right)^2}, \quad \text{and} \quad E\left[ \Vert z_k -\x \Vert_v^2 \right] \leq \frac{\varepsilon(0)}{\alpha-1}.
+		\end{equation*}
+	\item[iii)] If $\alpha > 3$, then
+		\begin{equation*}
+			\sum_{k = 1}^{\infty} kE\left[ \hat{F}_k - F(\x) \right] \leq \frac{\alpha-1}{2s(\alpha-3)}\varepsilon(1).
+		\end{equation*}
+\end{itemize}
+\label{lema_varep}
+\end{lema}
+
+\emph{Proof:} The first inequality presented in (\cite{Fercoq_Richtarik}:pag 2014):
+\begin{equation*}
+	E_k \left[ \hat{F}_{k+1} \right] \leq (1-\theta_k)\hat{F}_k + \theta_k F(\x) + \frac{n^2\theta_k^2}{2\tau^2} \left(\Vert \x - z_k\Vert_v^2 - E_k\left[\Vert \x-z_{k+1} \Vert_v^2 \right] \right),
+\end{equation*}
+give us, resting $F(\x)$ to both sides and rearranging terms
+
+\begin{equation}
+\label{eq:desg_1_facts}
+	E_k\left[\hat{F}_{k+1}-F(\x)\right] \leq (1-\theta_k)\left(\hat{F}_k-F(\x)\right) + \frac{\theta_k^2}{2s}\left(\Vert \x - z_k\Vert_v^2 - E_k\left[\Vert \x - z_{k+1}\Vert^2_v\right]\right),
+\end{equation}
+notice that
+
+\begin{equation*}
+	\theta_k^2 = \frac{(\alpha-1)^2}{\left(k+(\alpha-1)\frac{n}{\tau}\right)^2}, \quad 1-\theta_k = \frac{k+(\alpha-1)\frac{n}{\tau}-(\alpha-1)}{k+(\alpha-1)\frac{n}{\tau}},
+\end{equation*}
+multiplying \eqref{eq:desg_1_facts} by $\frac{2s(k+(\alpha-1)n/\tau)^2}{(\alpha-1)}$ and taking $C_{\alpha
+,k} = k + (\alpha-1)n/\tau - (\alpha-1)$ 
+
+\begin{eqnarray*}
+	\frac{2s}{(\alpha-1)}\left(k+(\alpha-1)\frac{n}{\tau}\right)^2E_k\left[\hat{F}_{k+1}-F(\x)\right] &\leq& \frac{2s}{(\alpha-1)}C_{\alpha,k}\left(k+(\alpha-1)\frac{n}{\tau}\right)\left(\hat{F}_k-F(\x)\right) \\
+	&+& (\alpha-1) \left(  \Vert \x - z_k \Vert_v^2 - E_k\left[\Vert \x-z_{k+1}\Vert_v^2\right]\right). 
+\end{eqnarray*}
+From the fact that
+
+\begin{eqnarray*}
+C_{k,\alpha}\left(k+(\alpha-1)\frac{n}{\tau} \right) &=& \left(k-1+(\alpha-1)\frac{n}{\tau}\right)^2 -k(\alpha-3) - \left( (\alpha^2-1)\frac{n}{\tau} +1\right) \\
+&\leq & \left(k-1+(\alpha-1)\frac{n}{\tau}\right)^2 -k(\alpha-3),
+\end{eqnarray*}
+we obtain the inequality
+
+\begin{center}
+	\begin{equation*}
+		\frac{2s}{\alpha-1} \left(k+(\alpha-1)\frac{n}{\tau}\right)^2 E_k \left[\hat{F}_{k+1}-F(\x)\right] + 2s\frac{\alpha-3}{\alpha-1}k\left(\hat{F}_k - F(\x) \right)
+	\end{equation*} \\
+	\begin{equation}
+	\label{eq:start_order}
+ 		\leq \frac{2s}{\alpha-1}\left(k-1+(\alpha-1)\frac{n}{\tau}\right)^2 \left(\hat{F}_k - F(\x) \right) + (\alpha-1) \left(  \Vert \x - z_k \Vert_v^2 - E_k\left[\Vert \x-z_{k+1}\Vert_v^2\right]\right).
+	\end{equation}
+\end{center}
+Finally, taking the whole expectation and rearranging terms, we get the recursive formula: 
+
+\begin{equation}
+\label{eq:Recursividad_varep}
+\varepsilon(k+1) + 2s\frac{\alpha-3}{\alpha-1}kE\left[\hat{F}_k - F(\x) \right] \leq \varepsilon(k).
+\end{equation}
+
+From \eqref{eq:Recursividad_varep} we can show all the properties:
+\begin{itemize}
+	\item For (i), notice the term $\displaystyle 2s\frac{\alpha-3}{\alpha-1}kE\left[\hat{F}_k - F(\x) \right]$ is positive.
+	\item Part (ii) is direct using $\varepsilon(k) \leq \varepsilon(0)$ and each term of $\varepsilon(k)$ is positive.
+	\item For (iii), use \eqref{eq:Recursividad_varep} and do the telescope sum. $\blacksquare$
+\end{itemize}
+\textbf{obs:} To this point, by Fact 2 we guaranty at least the same complexity of $O(k^{-2})$ obtained by \cite{Fercoq_Richtarik} with a different constant because:
+	\begin{equation*}
+		\varepsilon(0) = \frac{2s}{\alpha-1}\left((\alpha-1)\frac{n}{\tau} -1 \right)^2\left(F_0 -F(\x) \right) + (\alpha-1)\Vert x_0 - \x \Vert^2_v.
+	\end{equation*} 
+
+The next step is, inspired by the method developed by \cite{HA_JP}, past from $O(k^{-2})$ to $o(k^{-2})$.
+
+\section*{From O to o}
+
+\begin{lema}
+If $\alpha > 3$ then $\displaystyle \lim_{k \rightarrow \infty} \left[ \frac{(\alpha-1)^2}{2s} E \left[ \Vert x^* - z_{k+1} \Vert_v^2 \right] + \left(k+1 \right)^2 E\left[\hat{F}_{k+1}-F(\x) \right] \right]$ exist, in particular $\displaystyle \lim_{k \rightarrow \infty } \left(k+1 \right)^2 E\left[\hat{F}_{k+1}-F(\x) \right] $ exist.
+\label{lema_5}
+\end{lema}
+
+\emph{Proof}: From \eqref{eq:start_order} we have
+
+\begin{eqnarray*}
+\frac{2s}{\alpha-1} \left( k+(\alpha-1)\frac{n}{\tau}  \right)^2 E_k[\hat{F}_{k+1}-F(\x)] &\leq & \frac{2s}{\alpha-1} \left(k-1+(\alpha-1)\frac{n}{\tau} \right)^2 \left(\hat{F}_k- F(\x) \right) \\
+&+& (\alpha-1)\left(\Vert \x - z_k \Vert_v^2 + E_k[\Vert \x-z_{k+1} \Vert_v^2]  \right), \\
+&\leq & \frac{2s}{\alpha-1} \left(k+(\alpha-1)\frac{n}{\tau} \right)^2 \left(\hat{F}_k- F(\x) \right) \\
+&+& (\alpha-1)\left(\Vert \x - z_k \Vert_v^2 + E_k[\Vert \x-z_{k+1} \Vert_v^2]  \right),
+\end{eqnarray*}
+multiplying the above expression by $\frac{(\alpha-1)}{2s\left(k+(\alpha-1)\frac{n}{\tau} \right)^2}$ and rearranging the terms
+
+\begin{equation*}
+E_k \left[\hat{F}_{k+1} - F(\x) \right] - \left(\hat{F}_k - F(\x) \right) \leq \frac{(\alpha-1)^2}{2s\left( k+(\alpha-1)\frac{n}{\tau}\right)^2} \left( \Vert \x - z_k \Vert^2_v - E_k \left[ \Vert \x - z_{k+1} \Vert_v^2 \right] \right),
+\end{equation*}
+since $k \leq k+(\alpha-1)\frac{n}{\tau}$ the above inequality gives 
+
+\begin{equation*}
+E_k \left[\hat{F}_{k+1} - F(\x) \right] - \left(\hat{F}_k - F(\x) \right) \leq \frac{(\alpha-1)^2}{2sk^2} \left( \Vert \x - z_k \Vert^2_v - E_k \left[ \Vert \x - z_{k+1} \Vert_v^2 \right] \right),
+\end{equation*}
+multiplying by $k^2$ 
+
+\begin{equation}
+\label{eq:desg_1_lema}
+k^2 \left( E_k \left[\hat{F}_{k+1} - F(\x) \right] - \left(\hat{F}_k - F(\x) \right) \right) \leq \frac{(\alpha-1)^2}{2s}\left( \Vert \x - z_k \Vert^2_v - E_k \left[ \Vert \x - z_{k+1} \Vert_v^2 \right] \right),
+\end{equation}
+if we call $ a = \left(\hat{F}_k-F(\x) \right) $ and $ b = E_k[\hat{F}_{k+1}-F(\x)]  $ by algebraic manipulations we obtain the following inequality 
+
+\begin{equation}
+\label{eq:desg_2_lema}
+(k+1)^2b - k^2a = k^2(b-a) + (2k+1)b \leq k^2(b-a) + 2(k+1)b
+\end{equation}
+in this way, we use inequality \eqref{eq:desg_2_lema} to bound the left-side of \eqref{eq:desg_1_lema}  and get
+
+\begin{equation*}
+(k+1)^2 E_k \left[\hat{F}_{k+1} - F(\x)\right] - k^2 \left(\hat{F}_k - F(\x) \right) -2(k+1) E_k \left[\hat{F}_{k+1} - F(\x)\right] 
+\end{equation*}
+\begin{equation*}
+\leq \frac{(\alpha-1)^2}{2s}\left( \Vert \x - z_k \Vert^2_v - E_k \left[ \Vert \x - z_{k+1} \Vert_v^2 \right] \right),
+\end{equation*}
+
+
+rearranging terms we obtain the inequality
+\begin{equation*}
+\label{eq:desg_3_lema}
+\left(\frac{(\alpha-1)^2}{2s}E_k[\Vert \x -z_{k+1} \Vert_v^2 ] + (k+1)^2E_k[\hat{F}_{k+1}-F(\x)]\right) -\left( \frac{(\alpha-1)^2}{2s}\Vert \x -z_k \Vert_v^2  + k^2\left(\hat{F}_k - F(\x)\right) \right)
+\end{equation*}
+\begin{equation*}
+ \leq  2(k+1)E_k[\hat{F}_{k+1}-F(\x)].
+\end{equation*}
+Finally, taking the whole expectation and define $\vartheta_k = \frac{(\alpha-1)^2}{2s} E \left[\Vert \x - z_k \Vert_v^2 \right] + k^2E \left[\hat{F}_k - F(\x) \right]$ the above inequality gives
+
+\begin{equation}
+\label{eq:desg_4_lema}
+\vartheta_{k+1} - \vartheta_k \leq 2(k+1)E\left[\hat{F}_{k+1}-F(\x)\right].
+\end{equation}
+The result is obtained by observing that $\left\lbrace \vartheta_k \right\rbrace$ is bounded from below and the right-hand side of \eqref{eq:desg_4_lema} is summable (by lemma \ref{lema_varep} part (iii)).
+
+
+\begin{Teo}
+Let $\left\lbrace x_k \right\rbrace$ be a sequence generated by APPROX with $\alpha > 3$ and $\x$ an optimal point of \eqref{eq:main_problem}. Then
+	\begin{equation*}
+		\lim_{k \rightarrow \infty} k^2 E \left[F(x_k) - F(\x) \right] = 0
+	\end{equation*}
+In other words, $E\left[F(x_k) - F(\x) \right] = o\left(k^{-2} \right)$.
+\end{Teo}
+
+\emph{Proof}: From lemma \ref{lema_varep} part (iii) and the approximation $E\left[ F(x_k)-F(\x) \right] \leq E\left[ \hat{F}_k - F(\x) \right]$ we deduce that
+
+\begin{equation}
+	\sum_{k=1}^{\infty} \frac{1}{k} (k+1)^2 E\left[ F(x_{k+1}) - F(\x) \right] < \infty.
+\end{equation}
+Combining this with Lemma \ref{lema_1} we obtain	
+
+\begin{equation}
+	\lim_{k \rightarrow \infty} (k+1)^2 E\left[F(x_{k+1})-F(\x) \right] = 0 \quad \blacksquare.
+\end{equation}
+
+
+\newpage
+
+\nocite{*}
+\bibliography{Ref_1}
+\bibliographystyle{plain}
+
+\end{document}
